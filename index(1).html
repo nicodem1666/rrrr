@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trading Journal</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0d10;
+    --surface: #12151b;
+    --surface2: #1a1e28;
+    --surface3: #222736;
+    --border: rgba(255,255,255,0.06);
+    --border2: rgba(255,255,255,0.11);
+    --text: #e6e8f0;
+    --muted: #5a6070;
+    --dim: #8891a4;
+    --accent: #6c63f5;
+    --accent2: #9d97f8;
+    --accent-glow: rgba(108,99,245,0.15);
+    --green: #2ecc8a;
+    --red: #f06060;
+    --amber: #f5a623;
+    --blue: #4da6ff;
+    --teal: #26d4bf;
+    --font-head: 'Fraunces', serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-mono); font-size: 13px; }
+
+  /* ─── AUTH SCREENS ─── */
+  #auth-shell {
+    align-items: center;
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 24px;
+    position: relative;
+  }
+  #auth-shell::before {
+    background: radial-gradient(ellipse 600px 400px at 50% 0%, rgba(108,99,245,0.08) 0%, transparent 70%);
+    content: '';
+    inset: 0;
+    pointer-events: none;
+    position: absolute;
+  }
+  .auth-card {
+    animation: fadeUp 0.4s ease both;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    padding: 40px 36px;
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    z-index: 1;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .auth-logo { font-family: var(--font-head); font-size: 26px; font-weight: 300; letter-spacing: -0.5px; margin-bottom: 6px; }
+  .auth-logo span { color: var(--accent2); font-style: italic; }
+  .auth-sub { color: var(--muted); font-size: 12px; margin-bottom: 32px; }
+  .auth-title { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .field label { color: var(--dim); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .field input {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    outline: none;
+    padding: 10px 12px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    width: 100%;
+  }
+  .field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+  .field input.error { border-color: var(--red); }
+
+  .btn-auth {
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    margin-top: 4px;
+    padding: 11px;
+    transition: background 0.15s, transform 0.1s;
+    width: 100%;
+  }
+  .btn-auth:hover { background: var(--accent2); }
+  .btn-auth:active { transform: scale(0.98); }
+  .btn-auth:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .auth-switch { color: var(--muted); font-size: 12px; margin-top: 20px; text-align: center; }
+  .auth-switch a { color: var(--accent2); cursor: pointer; text-decoration: none; }
+  .auth-switch a:hover { text-decoration: underline; }
+
+  .msg { border-radius: 7px; font-size: 12px; margin-bottom: 14px; padding: 10px 12px; }
+  .msg.error { background: rgba(240,96,96,0.1); border: 1px solid rgba(240,96,96,0.25); color: var(--red); }
+  .msg.success { background: rgba(46,204,138,0.1); border: 1px solid rgba(46,204,138,0.25); color: var(--green); }
+  .msg.info { background: rgba(108,99,245,0.1); border: 1px solid rgba(108,99,245,0.25); color: var(--accent2); }
+
+  /* OTP inputs */
+  .otp-row { display: flex; gap: 10px; justify-content: center; margin: 20px 0; }
+  .otp-digit {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--font-head);
+    font-size: 22px;
+    font-weight: 500;
+    height: 56px;
+    outline: none;
+    text-align: center;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    width: 46px;
+  }
+  .otp-digit:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+  .resend-row { color: var(--muted); font-size: 11px; text-align: center; }
+  .resend-row a { color: var(--accent2); cursor: pointer; }
+  .resend-row a:hover { text-decoration: underline; }
+  .otp-email-hint { color: var(--dim); font-size: 12px; margin-bottom: 4px; text-align: center; }
+
+  /* ─── APP SHELL ─── */
+  #app-shell { display: none; flex-direction: column; height: 100vh; }
+  header {
+    align-items: center;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    padding: 16px 28px;
+    flex-shrink: 0;
+  }
+  .logo { font-family: var(--font-head); font-size: 20px; font-weight: 300; letter-spacing: -0.5px; }
+  .logo span { color: var(--accent2); font-style: italic; }
+  .header-right { align-items: center; display: flex; gap: 16px; }
+  .user-badge { background: var(--surface2); border: 1px solid var(--border2); border-radius: 6px; color: var(--dim); font-size: 11px; padding: 5px 10px; }
+  .signout-btn { background: none; border: 1px solid var(--border2); border-radius: 6px; color: var(--muted); cursor: pointer; font-family: var(--font-mono); font-size: 11px; padding: 5px 10px; transition: all 0.15s; }
+  .signout-btn:hover { border-color: var(--red); color: var(--red); }
+
+  .app-body { display: grid; grid-template-columns: 290px 1fr; flex: 1; overflow: hidden; }
+  .sidebar { border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 18px; overflow-y: auto; padding: 20px 18px; }
+  .content { display: flex; flex-direction: column; gap: 20px; overflow-y: auto; padding: 22px 26px; }
+
+  .section-title { color: var(--muted); font-size: 10px; letter-spacing: 0.1em; margin-bottom: 10px; text-transform: uppercase; }
+  .form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+  .form-group label { color: var(--dim); font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase; }
+  .form-group input, .form-group select {
+    background: var(--surface2); border: 1px solid var(--border2); border-radius: 6px;
+    color: var(--text); font-family: var(--font-mono); font-size: 12px; outline: none;
+    padding: 8px 10px; transition: border-color 0.15s; width: 100%;
+  }
+  .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+  select option { background: var(--surface2); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .btn { border-radius: 6px; cursor: pointer; font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: 0.03em; padding: 9px 14px; transition: all 0.15s; border: none; width: 100%; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-ghost { background: transparent; border: 1px solid var(--border2); color: var(--dim); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--text); }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+
+  /* Stats */
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .stat-label { color: var(--muted); font-size: 10px; letter-spacing: 0.07em; margin-bottom: 6px; text-transform: uppercase; }
+  .stat-value { font-family: var(--font-head); font-size: 20px; }
+  .stat-value.pos { color: var(--green); }
+  .stat-value.neg { color: var(--red); }
+
+  /* Charts */
+  .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .chart-title { color: var(--muted); font-size: 10px; letter-spacing: 0.08em; margin-bottom: 14px; text-transform: uppercase; }
+  .chart-wrap { height: 190px; position: relative; width: 100%; }
+
+  /* Table */
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .table-header { align-items: center; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; padding: 12px 16px; }
+  .trade-count { color: var(--muted); font-size: 11px; }
+  .export-btn { background: transparent; border: 1px solid var(--border2); border-radius: 6px; color: var(--dim); cursor: pointer; font-family: var(--font-mono); font-size: 11px; padding: 5px 10px; transition: all 0.15s; }
+  .export-btn:hover { border-color: var(--accent); color: var(--text); }
+  table { border-collapse: collapse; width: 100%; }
+  thead th { background: var(--surface2); border-bottom: 1px solid var(--border); color: var(--muted); font-size: 10px; font-weight: 500; letter-spacing: 0.08em; padding: 9px 11px; text-align: left; text-transform: uppercase; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+  td { padding: 9px 11px; vertical-align: middle; }
+  .badge { border-radius: 4px; display: inline-block; font-size: 10px; font-weight: 500; letter-spacing: 0.05em; padding: 2px 7px; text-transform: uppercase; }
+  .badge-buy { background: rgba(46,204,138,0.1); color: var(--green); }
+  .badge-sell { background: rgba(240,96,96,0.1); color: var(--red); }
+  .badge-crypto { background: rgba(245,166,35,0.12); color: var(--amber); }
+  .badge-forex { background: rgba(77,166,255,0.12); color: var(--blue); }
+  .badge-stocks { background: rgba(38,212,191,0.12); color: var(--teal); }
+  .pnl-pos { color: var(--green); font-weight: 500; }
+  .pnl-neg { color: var(--red); font-weight: 500; }
+  .action-btns { display: flex; gap: 5px; }
+  .icon-btn { background: none; border: 1px solid var(--border2); border-radius: 4px; color: var(--muted); cursor: pointer; font-family: var(--font-mono); font-size: 10px; padding: 3px 7px; transition: all 0.15s; }
+  .icon-btn:hover { border-color: var(--red); color: var(--red); }
+  .icon-btn.edit:hover { border-color: var(--accent); color: var(--accent); }
+  .empty { color: var(--muted); font-size: 12px; padding: 48px; text-align: center; }
+  .empty-icon { font-size: 28px; margin-bottom: 10px; opacity: 0.35; }
+
+  /* Toast */
+  .toast { background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; bottom: 20px; color: var(--text); font-size: 12px; opacity: 0; padding: 9px 14px; position: fixed; right: 20px; transform: translateY(40px); transition: all 0.3s; z-index: 9999; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .loading-overlay { align-items: center; background: var(--bg); bottom: 0; display: flex; font-size: 12px; color: var(--muted); justify-content: center; left: 0; position: fixed; right: 0; top: 0; z-index: 9999; }
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div class="loading-overlay" id="loading">Initializing...</div>
+
+<!-- ═══════════════ AUTH SHELL ═══════════════ -->
+<div id="auth-shell" style="display:none">
+  <div class="auth-card" id="auth-card">
+
+    <!-- SIGN IN -->
+    <div id="screen-signin">
+      <div class="auth-logo">trading<span>journal</span></div>
+      <div class="auth-sub">Track every trade. Master every market.</div>
+      <div id="signin-msg"></div>
+      <div class="field"><label>Email</label><input type="email" id="si-email" placeholder="you@example.com"></div>
+      <div class="field"><label>Password</label><input type="password" id="si-pass" placeholder="••••••••"></div>
+      <button class="btn-auth" onclick="doSignIn()">Sign In</button>
+      <div class="auth-switch">No account? <a onclick="show('screen-signup')">Create one</a></div>
+    </div>
+
+    <!-- SIGN UP -->
+    <div id="screen-signup" style="display:none">
+      <div class="auth-logo">trading<span>journal</span></div>
+      <div class="auth-sub">Create your free account</div>
+      <div id="signup-msg"></div>
+      <div class="field"><label>Full Name</label><input type="text" id="su-name" placeholder="Your name"></div>
+      <div class="field"><label>Email</label><input type="email" id="su-email" placeholder="you@example.com"></div>
+      <div class="field"><label>Password</label><input type="password" id="su-pass" placeholder="Min 8 characters"></div>
+      <div class="field"><label>Confirm Password</label><input type="password" id="su-pass2" placeholder="Repeat password"></div>
+      <button class="btn-auth" onclick="doSignUp()">Create Account</button>
+      <div class="auth-switch">Already have an account? <a onclick="show('screen-signin')">Sign in</a></div>
+    </div>
+
+    <!-- OTP VERIFY -->
+    <div id="screen-otp" style="display:none">
+      <div class="auth-logo">trading<span>journal</span></div>
+      <div class="auth-sub" style="margin-bottom:20px">Verify your email</div>
+      <div id="otp-msg"></div>
+      <div class="otp-email-hint">We sent a 6-digit code to</div>
+      <div style="color:var(--accent2);font-size:13px;text-align:center;margin-bottom:20px" id="otp-email-display"></div>
+      <div class="otp-row">
+        <input class="otp-digit" id="otp0" maxlength="1" inputmode="numeric" pattern="[0-9]">
+        <input class="otp-digit" id="otp1" maxlength="1" inputmode="numeric" pattern="[0-9]">
+        <input class="otp-digit" id="otp2" maxlength="1" inputmode="numeric" pattern="[0-9]">
+        <input class="otp-digit" id="otp3" maxlength="1" inputmode="numeric" pattern="[0-9]">
+        <input class="otp-digit" id="otp4" maxlength="1" inputmode="numeric" pattern="[0-9]">
+        <input class="otp-digit" id="otp5" maxlength="1" inputmode="numeric" pattern="[0-9]">
+      </div>
+      <button class="btn-auth" onclick="doVerifyOTP()">Verify Code</button>
+      <div class="resend-row" style="margin-top:14px">Didn't get it? <a onclick="resendOTP()">Resend code</a></div>
+      <div class="auth-switch" style="margin-top:10px"><a onclick="show('screen-signin')">← Back to sign in</a></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════ APP SHELL ═══════════════ -->
+<div id="app-shell">
+  <header>
+    <div class="logo">trading<span>journal</span></div>
+    <div class="header-right">
+      <div class="user-badge" id="user-email-display"></div>
+      <button class="signout-btn" onclick="doSignOut()">Sign Out</button>
+    </div>
+  </header>
+  <div class="app-body">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div>
+        <div class="section-title" id="form-title">New Trade</div>
+        <input type="hidden" id="edit-id">
+        <div class="form-group"><label>Date</label><input type="date" id="f-date"></div>
+        <div class="row2">
+          <div class="form-group"><label>Market</label>
+            <select id="f-market">
+              <option value="Crypto">Crypto</option>
+              <option value="Forex">Forex</option>
+              <option value="Stocks">Stocks</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Side</label>
+            <select id="f-side">
+              <option value="Buy">Buy</option>
+              <option value="Sell">Sell</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group"><label>Symbol / Pair</label><input type="text" id="f-symbol" placeholder="BTC/USDT, EUR/USD"></div>
+        <div class="row2">
+          <div class="form-group"><label>Entry</label><input type="number" id="f-entry" placeholder="0.00" step="any"></div>
+          <div class="form-group"><label>Exit</label><input type="number" id="f-exit" placeholder="0.00" step="any"></div>
+        </div>
+        <div class="row2">
+          <div class="form-group"><label>Size</label><input type="number" id="f-size" placeholder="0.00" step="any"></div>
+          <div class="form-group"><label>P&L ($)</label><input type="number" id="f-pnl" placeholder="auto" step="any"></div>
+        </div>
+        <div class="form-group"><label>Notes</label><input type="text" id="f-notes" placeholder="Strategy, tags..."></div>
+        <button class="btn btn-primary" onclick="saveTrade()">Add Trade</button>
+        <button class="btn btn-ghost" id="cancel-btn" style="margin-top:6px;display:none" onclick="cancelEdit()">Cancel</button>
+      </div>
+      <hr class="divider">
+      <div>
+        <div class="section-title">Filter</div>
+        <div class="form-group"><label>Symbol</label><input type="text" id="filter-symbol" placeholder="BTC, EUR..." oninput="renderAll()"></div>
+        <div class="row2">
+          <div class="form-group"><label>Market</label>
+            <select id="filter-market" onchange="renderAll()">
+              <option value="">All</option>
+              <option value="Crypto">Crypto</option>
+              <option value="Forex">Forex</option>
+              <option value="Stocks">Stocks</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Side</label>
+            <select id="filter-side" onchange="renderAll()">
+              <option value="">All</option>
+              <option value="Buy">Buy</option>
+              <option value="Sell">Sell</option>
+            </select>
+          </div>
+        </div>
+        <div class="row2">
+          <div class="form-group"><label>From</label><input type="date" id="filter-from" onchange="renderAll()"></div>
+          <div class="form-group"><label>To</label><input type="date" id="filter-to" onchange="renderAll()"></div>
+        </div>
+        <button class="btn btn-ghost" onclick="clearFilters()">Clear Filters</button>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-label">Total P&L</div><div class="stat-value" id="s-pnl">$0.00</div></div>
+        <div class="stat-card"><div class="stat-label">Win Rate</div><div class="stat-value" id="s-wr">0%</div></div>
+        <div class="stat-card"><div class="stat-label">Trades</div><div class="stat-value" id="s-total">0</div></div>
+        <div class="stat-card"><div class="stat-label">Best Trade</div><div class="stat-value pos" id="s-best">$0.00</div></div>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-card"><div class="chart-title">Cumulative P&L</div><div class="chart-wrap"><canvas id="chart-equity"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">P&L by Market</div><div class="chart-wrap"><canvas id="chart-market"></canvas></div></div>
+      </div>
+      <div class="table-wrap">
+        <div class="table-header">
+          <div class="trade-count" id="trade-count">0 trades</div>
+          <button class="export-btn" onclick="exportCSV()">↓ Export CSV</button>
+        </div>
+        <div id="table-body"><div class="empty"><div class="empty-icon">📈</div>No trades yet. Add your first trade.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ═══════════════ CONFIG BANNER ═══════════════ -->
+<div id="config-banner" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:36px;max-width:480px;width:90%">
+    <div style="font-family:var(--font-head);font-size:20px;margin-bottom:8px">Configure Supabase</div>
+    <div style="color:var(--muted);font-size:12px;line-height:1.7;margin-bottom:20px">
+      Paste your Supabase project URL and anon key below.<br>
+      Find them in your Supabase dashboard → Project Settings → API.
+    </div>
+    <div class="field"><label>Supabase URL</label><input type="text" id="cfg-url" placeholder="https://xxxx.supabase.co"></div>
+    <div class="field"><label>Anon Key</label><input type="text" id="cfg-key" placeholder="eyJhbGci..."></div>
+    <button class="btn-auth" onclick="saveConfig()">Save & Connect</button>
+    <div style="color:var(--muted);font-size:11px;margin-top:14px;line-height:1.6">
+      <strong style="color:var(--dim)">Also run this SQL in Supabase SQL editor:</strong><br>
+      <code style="background:var(--surface2);display:block;margin-top:8px;padding:10px;border-radius:6px;font-size:10px;line-height:1.7;color:var(--accent2)">
+create table trades (<br>
+&nbsp;&nbsp;id uuid primary key default gen_random_uuid(),<br>
+&nbsp;&nbsp;user_id uuid references auth.users not null,<br>
+&nbsp;&nbsp;date text, market text, side text, symbol text,<br>
+&nbsp;&nbsp;entry numeric, exit numeric, size numeric, pnl numeric, notes text,<br>
+&nbsp;&nbsp;created_at timestamptz default now()<br>
+);<br>
+alter table trades enable row level security;<br>
+create policy "own trades" on trades<br>
+&nbsp;&nbsp;using (auth.uid() = user_id)<br>
+&nbsp;&nbsp;with check (auth.uid() = user_id);
+      </code>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const CFG_KEY = 'tj_supabase_config';
+let supabase = null;
+let currentUser = null;
+let trades = [];
+let equityChart, marketChart;
+let pendingEmail = '';
+
+function getConfig() {
+  return {
+    url: 'https://dkckfboqgnkalvblalhn.supabase.co',
+    key: 'sb_publishable_cB3_gswx_Mv4zDMz2WgcJQ_Y9C7suHh'
+  };
+}
+function saveConfig() {
+  const url = document.getElementById('cfg-url').value.trim();
+  const key = document.getElementById('cfg-key').value.trim();
+  if (!url || !key) { alert('Both fields required.'); return; }
+  localStorage.setItem(CFG_KEY, JSON.stringify({ url, key }));
+  location.reload();
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+async function init() {
+  // Wait for supabase library to load
+  let attempts = 0;
+  while (!window.supabase && attempts < 50) {
+    await new Promise(r => setTimeout(r, 100));
+    attempts++;
+  }
+  if (!window.supabase) {
+    document.getElementById('loading').innerHTML = 'Failed to load. Please check your internet connection and refresh.';
+    return;
+  }
+  const cfg = getConfig();
+  if (!cfg) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('config-banner').style.display = 'flex';
+    return;
+  }
+  supabase = window.supabase.createClient(cfg.url, cfg.key);
+  const { data: { session } } = await supabase.auth.getSession();
+  document.getElementById('loading').style.display = 'none';
+  if (session) {
+    currentUser = session.user;
+    showApp();
+  } else {
+    showAuth();
+  }
+  supabase.auth.onAuthStateChange((_event, session) => {
+    if (session) { currentUser = session.user; showApp(); }
+    else { currentUser = null; showAuth(); }
+  });
+}
+
+// ─── SCREEN HELPERS ──────────────────────────────────────────────────────────
+function show(id) {
+  ['screen-signin','screen-signup','screen-otp'].forEach(s => document.getElementById(s).style.display = 'none');
+  document.getElementById(id).style.display = 'block';
+  clearMsgs();
+}
+function clearMsgs() {
+  ['signin-msg','signup-msg','otp-msg'].forEach(id => { const el = document.getElementById(id); el.textContent=''; el.className='msg'; });
+}
+function setMsg(id, text, type='error') {
+  const el = document.getElementById(id); el.textContent = text; el.className = 'msg ' + type;
+}
+function showAuth() {
+  document.getElementById('app-shell').style.display = 'none';
+  document.getElementById('auth-shell').style.display = 'flex';
+  show('screen-signin');
+}
+function showApp() {
+  document.getElementById('auth-shell').style.display = 'none';
+  document.getElementById('app-shell').style.display = 'flex';
+  document.getElementById('user-email-display').textContent = currentUser.email;
+  document.getElementById('f-date').valueAsDate = new Date();
+  loadTrades();
+}
+
+// ─── AUTH ────────────────────────────────────────────────────────────────────
+async function doSignIn() {
+  const email = document.getElementById('si-email').value.trim();
+  const pass  = document.getElementById('si-pass').value;
+  if (!email || !pass) { setMsg('signin-msg','Enter email and password.'); return; }
+  const btn = document.querySelector('#screen-signin .btn-auth');
+  btn.disabled = true; btn.textContent = 'Signing in...';
+  const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+  btn.disabled = false; btn.textContent = 'Sign In';
+  if (error) setMsg('signin-msg', error.message);
+}
+
+async function doSignUp() {
+  const name  = document.getElementById('su-name').value.trim();
+  const email = document.getElementById('su-email').value.trim();
+  const pass  = document.getElementById('su-pass').value;
+  const pass2 = document.getElementById('su-pass2').value;
+  if (!name || !email || !pass) { setMsg('signup-msg','All fields are required.'); return; }
+  if (pass.length < 8) { setMsg('signup-msg','Password must be at least 8 characters.'); return; }
+  if (pass !== pass2) { setMsg('signup-msg','Passwords do not match.'); return; }
+  const btn = document.querySelector('#screen-signup .btn-auth');
+  btn.disabled = true; btn.textContent = 'Creating account...';
+  const { error } = await supabase.auth.signUp({
+    email, password: pass,
+    options: { data: { full_name: name }, emailRedirectTo: location.href }
+  });
+  btn.disabled = false; btn.textContent = 'Create Account';
+  if (error) { setMsg('signup-msg', error.message); return; }
+  pendingEmail = email;
+  document.getElementById('otp-email-display').textContent = email;
+  show('screen-otp');
+  setMsg('otp-msg','Check your inbox for a 6-digit verification code.','info');
+  document.getElementById('otp0').focus();
+}
+
+async function doVerifyOTP() {
+  const code = [0,1,2,3,4,5].map(i => document.getElementById('otp'+i).value).join('');
+  if (code.length < 6) { setMsg('otp-msg','Enter all 6 digits.'); return; }
+  const btn = document.querySelector('#screen-otp .btn-auth');
+  btn.disabled = true; btn.textContent = 'Verifying...';
+  const { error } = await supabase.auth.verifyOtp({ email: pendingEmail, token: code, type: 'signup' });
+  btn.disabled = false; btn.textContent = 'Verify Code';
+  if (error) { setMsg('otp-msg', error.message); return; }
+  // Auth state change will trigger showApp
+}
+
+async function resendOTP() {
+  if (!pendingEmail) return;
+  const { error } = await supabase.auth.resend({ type: 'signup', email: pendingEmail });
+  if (error) setMsg('otp-msg', error.message);
+  else setMsg('otp-msg','New code sent! Check your inbox.','success');
+}
+
+async function doSignOut() {
+  await supabase.auth.signOut();
+  trades = [];
+}
+
+// OTP auto-advance
+for (let i = 0; i < 6; i++) {
+  const el = document.getElementById('otp' + i);
+  el.addEventListener('input', () => {
+    el.value = el.value.replace(/\D/g,'').slice(-1);
+    if (el.value && i < 5) document.getElementById('otp'+(i+1)).focus();
+  });
+  el.addEventListener('keydown', e => {
+    if (e.key === 'Backspace' && !el.value && i > 0) document.getElementById('otp'+(i-1)).focus();
+  });
+  el.addEventListener('paste', e => {
+    e.preventDefault();
+    const paste = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g,'').slice(0,6);
+    paste.split('').forEach((ch, idx) => {
+      const target = document.getElementById('otp'+idx);
+      if (target) target.value = ch;
+    });
+    const last = Math.min(paste.length, 5);
+    document.getElementById('otp'+last).focus();
+  });
+}
+
+// ─── TRADE DATA ──────────────────────────────────────────────────────────────
+async function loadTrades() {
+  const { data, error } = await supabase.from('trades').select('*').eq('user_id', currentUser.id).order('date', { ascending: true });
+  if (error) { toast('Error loading trades: ' + error.message); return; }
+  trades = data || [];
+  renderAll();
+}
+
+async function saveTrade() {
+  const id       = document.getElementById('edit-id').value;
+  const date     = document.getElementById('f-date').value;
+  const market   = document.getElementById('f-market').value;
+  const side     = document.getElementById('f-side').value;
+  const symbol   = document.getElementById('f-symbol').value.trim().toUpperCase();
+  const entry    = parseFloat(document.getElementById('f-entry').value);
+  const exit_val = parseFloat(document.getElementById('f-exit').value);
+  const size     = parseFloat(document.getElementById('f-size').value);
+  const pnlOver  = document.getElementById('f-pnl').value;
+  const notes    = document.getElementById('f-notes').value.trim();
+  if (!date || !symbol || isNaN(entry)) { toast('Date, symbol and entry price are required.'); return; }
+  let pnl = 0;
+  if (pnlOver !== '') pnl = parseFloat(pnlOver);
+  else if (!isNaN(exit_val) && !isNaN(size) && size > 0)
+    pnl = (exit_val - entry) * size * (side === 'Sell' ? -1 : 1);
+
+  const payload = {
+    user_id: currentUser.id, date, market, side, symbol,
+    entry, exit: isNaN(exit_val)?null:exit_val, size: isNaN(size)?null:size, pnl, notes
+  };
+
+  let error;
+  if (id) {
+    ({ error } = await supabase.from('trades').update(payload).eq('id', id).eq('user_id', currentUser.id));
+  } else {
+    ({ error } = await supabase.from('trades').insert(payload));
+  }
+  if (error) { toast('Error: ' + error.message); return; }
+  toast(id ? 'Trade updated' : 'Trade added');
+  cancelEdit();
+  clearForm();
+  await loadTrades();
+}
+
+async function deleteTrade(id) {
+  if (!confirm('Delete this trade?')) return;
+  const { error } = await supabase.from('trades').delete().eq('id', id).eq('user_id', currentUser.id);
+  if (error) { toast('Error: ' + error.message); return; }
+  toast('Trade deleted');
+  await loadTrades();
+}
+
+function editTrade(id) {
+  const t = trades.find(x => x.id === id); if (!t) return;
+  document.getElementById('edit-id').value = t.id;
+  document.getElementById('f-date').value = t.date;
+  document.getElementById('f-market').value = t.market;
+  document.getElementById('f-side').value = t.side;
+  document.getElementById('f-symbol').value = t.symbol;
+  document.getElementById('f-entry').value = t.entry;
+  document.getElementById('f-exit').value = t.exit ?? '';
+  document.getElementById('f-size').value = t.size ?? '';
+  document.getElementById('f-pnl').value = t.pnl ?? '';
+  document.getElementById('f-notes').value = t.notes ?? '';
+  document.getElementById('form-title').textContent = 'Edit Trade';
+  document.getElementById('cancel-btn').style.display = 'block';
+  document.querySelector('.btn-primary').textContent = 'Update Trade';
+}
+function cancelEdit() {
+  document.getElementById('edit-id').value = '';
+  document.getElementById('form-title').textContent = 'New Trade';
+  document.getElementById('cancel-btn').style.display = 'none';
+  document.querySelector('.btn-primary').textContent = 'Add Trade';
+}
+function clearForm() {
+  document.getElementById('f-date').valueAsDate = new Date();
+  ['f-symbol','f-entry','f-exit','f-size','f-pnl','f-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-market').value = 'Crypto';
+  document.getElementById('f-side').value = 'Buy';
+}
+
+// ─── FILTERS ─────────────────────────────────────────────────────────────────
+function getFiltered() {
+  const sym  = document.getElementById('filter-symbol').value.toLowerCase();
+  const mkt  = document.getElementById('filter-market').value;
+  const side = document.getElementById('filter-side').value;
+  const from = document.getElementById('filter-from').value;
+  const to   = document.getElementById('filter-to').value;
+  return trades.filter(t => {
+    if (sym  && !t.symbol.toLowerCase().includes(sym)) return false;
+    if (mkt  && t.market !== mkt) return false;
+    if (side && t.side   !== side) return false;
+    if (from && t.date   <  from) return false;
+    if (to   && t.date   >  to)   return false;
+    return true;
+  });
+}
+function clearFilters() {
+  ['filter-symbol','filter-from','filter-to'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('filter-market').value = '';
+  document.getElementById('filter-side').value = '';
+  renderAll();
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+function fmt(n, currency=true) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  const s = Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  return currency ? (n < 0 ? '-$' : '$') + s : s;
+}
+
+function renderStats(f) {
+  const total = f.reduce((a,t) => a + (t.pnl||0), 0);
+  const wins  = f.filter(t => t.pnl > 0).length;
+  const wr    = f.length ? Math.round(wins/f.length*100) : 0;
+  const best  = f.length ? Math.max(...f.map(t => t.pnl||0)) : 0;
+  const pnlEl = document.getElementById('s-pnl');
+  pnlEl.textContent = fmt(total); pnlEl.className = 'stat-value ' + (total>=0?'pos':'neg');
+  document.getElementById('s-wr').textContent    = wr + '%';
+  document.getElementById('s-total').textContent = f.length;
+  document.getElementById('s-best').textContent  = fmt(best);
+}
+
+function renderTable(f) {
+  document.getElementById('trade-count').textContent = f.length + ' trade' + (f.length!==1?'s':'');
+  const body = document.getElementById('table-body');
+  if (!f.length) { body.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div>No trades match your filters.</div>'; return; }
+  const rows = f.map(t => {
+    const pnlCls = (t.pnl||0) >= 0 ? 'pnl-pos' : 'pnl-neg';
+    return `<tr>
+      <td>${t.date}</td>
+      <td><span class="badge badge-${t.market.toLowerCase()}">${t.market}</span></td>
+      <td style="font-weight:500">${t.symbol}</td>
+      <td><span class="badge badge-${t.side.toLowerCase()}">${t.side}</span></td>
+      <td>${fmt(t.entry,false)}</td>
+      <td>${fmt(t.exit,false)}</td>
+      <td>${t.size??'—'}</td>
+      <td class="${pnlCls}">${fmt(t.pnl)}</td>
+      <td style="color:var(--muted);font-size:11px">${t.notes||'—'}</td>
+      <td><div class="action-btns">
+        <button class="icon-btn edit" onclick="editTrade('${t.id}')">edit</button>
+        <button class="icon-btn" onclick="deleteTrade('${t.id}')">del</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+  body.innerHTML = `<table>
+    <thead><tr><th>Date</th><th>Market</th><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>Size</th><th>P&L</th><th>Notes</th><th></th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+}
+
+function renderCharts(f) {
+  let cum = 0;
+  const labels  = f.map(t => t.date);
+  const eqData  = f.map(t => { cum += (t.pnl||0); return parseFloat(cum.toFixed(2)); });
+  const lastVal = eqData[eqData.length-1] || 0;
+  const posC = '#2ecc8a', negC = '#f06060';
+
+  if (equityChart) equityChart.destroy();
+  equityChart = new Chart(document.getElementById('chart-equity').getContext('2d'), {
+    type: 'line',
+    data: { labels, datasets: [{ data: eqData, borderColor: lastVal>=0?posC:negC, borderWidth: 2,
+      fill: true, backgroundColor: lastVal>=0?'rgba(46,204,138,0.07)':'rgba(240,96,96,0.07)',
+      tension: 0.35, pointRadius: f.length>20?0:3, pointBackgroundColor: lastVal>=0?posC:negC }] },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{display:false}, tooltip:{callbacks:{label:c=>' $'+c.raw.toFixed(2)}} },
+      scales: {
+        x: { ticks:{color:'#5a6070',font:{size:10},maxTicksLimit:6}, grid:{color:'rgba(255,255,255,0.04)'} },
+        y: { ticks:{color:'#5a6070',font:{size:10},callback:v=>'$'+v}, grid:{color:'rgba(255,255,255,0.04)'} }
+      }
+    }
+  });
+
+  const markets = ['Crypto','Forex','Stocks'];
+  const mktVals = markets.map(m => parseFloat(f.filter(t=>t.market===m).reduce((a,t)=>a+(t.pnl||0),0).toFixed(2)));
+  if (marketChart) marketChart.destroy();
+  marketChart = new Chart(document.getElementById('chart-market').getContext('2d'), {
+    type: 'bar',
+    data: { labels: markets, datasets: [{ data: mktVals, borderRadius: 4,
+      backgroundColor: mktVals.map(v => v>=0?'rgba(46,204,138,0.6)':'rgba(240,96,96,0.6)'),
+      borderColor: mktVals.map(v => v>=0?posC:negC), borderWidth: 1 }] },
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{display:false}, tooltip:{callbacks:{label:c=>' $'+c.raw.toFixed(2)}} },
+      scales: {
+        x: { ticks:{color:'#8891a4',font:{size:11}}, grid:{display:false} },
+        y: { ticks:{color:'#5a6070',font:{size:10},callback:v=>'$'+v}, grid:{color:'rgba(255,255,255,0.04)'} }
+      }
+    }
+  });
+}
+
+function renderAll() {
+  const f = getFiltered();
+  renderStats(f); renderTable(f); renderCharts(f);
+}
+
+// ─── EXPORT ───────────────────────────────────────────────────────────────────
+function exportCSV() {
+  const f = getFiltered();
+  if (!f.length) { toast('No trades to export.'); return; }
+  const rows = f.map(t => [t.date,t.market,t.symbol,t.side,t.entry,t.exit??'',t.size??'',t.pnl,`"${(t.notes||'').replace(/"/g,'""')}"`].join(','));
+  const csv = ['Date,Market,Symbol,Side,Entry,Exit,Size,PnL,Notes',...rows].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'trades_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  toast('Exported ' + f.length + ' trades');
+}
+
+// ─── TOAST ────────────────────────────────────────────────────────────────────
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+init();
+</script>
+</body>
+</html>
